@@ -1,0 +1,60 @@
+using Core.Dto;
+
+namespace Core.Import;
+
+public static class BookCsvImporter
+{
+    // Роздільник — крапка з комою.
+    private const char Separator = ';';
+
+    public static ImportResult Load(string path)
+    {
+        var items = new List<BookDto>();
+        var errors = new List<string>();
+        string[] lines = File.ReadAllLines(path);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int number = i + 1;
+            string line = lines[i];
+
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+                continue;
+
+            if (number == 1 && line.StartsWith("id", StringComparison.OrdinalIgnoreCase))
+                continue; // рядок заголовків
+
+            switch (ParseLine(line))
+            {
+                case ParseOk ok:
+                    items.Add(ok.Value);
+                    break;
+                case ParseFailed failed:
+                    errors.Add($"рядок {number}: {failed.Reason}");
+                    break;
+            }
+        }
+        return new ImportResult(items, errors);
+    }
+
+    private static ParseOutcome ParseLine(string line)
+    {
+        string[] parts = line.Split(Separator, StringSplitOptions.TrimEntries);
+
+        return parts switch
+        {
+            { Length: < 4 } => new ParseFailed($"очікую 4 колонки, отримав {parts.Length}"),
+            [_, "", _, _] or [_, _, "", _]
+                => new ParseFailed("ISBN або назва порожні"),
+            [_, _, _, var yearStr] when !int.TryParse(yearStr, out int y) || y < 1000
+                => new ParseFailed($"рік '{yearStr}' не є коректним"),
+            [var id, var isbn, var title, var yearStr]
+                => new ParseOk(new BookDto(id, isbn, title, int.Parse(yearStr))),
+            _ => new ParseFailed($"занадто багато колонок: {parts.Length}")
+        };
+    }
+
+    private abstract record ParseOutcome;
+    private sealed record ParseOk(BookDto Value) : ParseOutcome;
+    private sealed record ParseFailed(string Reason) : ParseOutcome;
+}
