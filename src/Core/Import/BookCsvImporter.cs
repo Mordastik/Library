@@ -1,10 +1,10 @@
 using Core.Dto;
+using System;
 
 namespace Core.Import;
 
 public static class BookCsvImporter
 {
-    // Роздільник — крапка з комою.
     private const char Separator = ';';
 
     public static ImportResult Load(string path)
@@ -46,10 +46,10 @@ public static class BookCsvImporter
             { Length: < 4 } => new ParseFailed($"очікую 4 колонки, отримав {parts.Length}"),
             [_, "", _, _] or [_, _, "", _]
                 => new ParseFailed("ISBN або назва порожні"),
-            [_, _, _, var yearStr] when !int.TryParse(yearStr, out int y) || y < 1000
-                => new ParseFailed($"рік '{yearStr}' не є коректним"),
-            [var id, var isbn, var title, var yearStr]
-                => new ParseOk(new BookDto(id, isbn, title, int.Parse(yearStr))),
+            [_, _, _, var year] when !int.TryParse(year, out int y) || y < 1450 || y > DateTime.Now.Year
+                => new ParseFailed($"рік '{year}' поза допустимими межами"),
+            [var id, var isbn, var title, var year]
+                => new ParseOk(new BookDto(id, isbn, title, int.Parse(year))),
             _ => new ParseFailed($"занадто багато колонок: {parts.Length}")
         };
     }
