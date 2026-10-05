@@ -1,34 +1,42 @@
-﻿using Core.Dto;
-using Core.Import;
-using System.Text;
+﻿using Core.Domain;
 
-Console.OutputEncoding = Encoding.UTF8;
+Console.WriteLine("Сценарій 1: успіх");
+var copy = BookCopy.Create("C-001", "978-3-16-148410");
+var loan = Loan.Open("L-001", copy.Id, "R-123", DateTime.Now);
 
-string path = args.Length > 0 ? args[0] : Path.Combine("data", "sample.csv");
+copy.Issue(); // Змінюємо стан примірника
+Console.WriteLine(loan);
+Console.WriteLine($"Примірник видано: {copy.IsIssued}");
 
-if (!File.Exists(path))
+loan.Close(DateTime.Now.AddDays(7)); // Успішно закриваємо
+copy.Return(); // Повертаємо примірник
+Console.WriteLine(loan);
+Console.WriteLine($"Примірник видано: {copy.IsIssued}");
+Console.WriteLine();
+
+Console.WriteLine("Сценарій 2: порушення інваріантів");
+
+// Намагаємось видати вже виданий примірник
+var copy2 = BookCopy.Create("C-002", "978-0-261-10328");
+copy2.Issue();
+TryDo("повторна видача", () => copy2.Issue());
+
+// Намагаємось створити примірник без порожнього ISBN
+TryDo("порожній ISBN", () => BookCopy.Create("C-003", ""));
+
+// Намагаємось закрити видачу з датою в минулому
+var loan2 = Loan.Open("L-002", "C-004", "R-456", DateTime.Now);
+TryDo("дата повернення в минулому", () => loan2.Close(DateTime.Now.AddDays(-1)));
+
+static void TryDo(string title, Action action)
 {
-    Console.WriteLine($"Файл не знайдено: {Path.GetFullPath(path)}");
-    return 1;
-}
-
-ImportResult result = BookCsvImporter.Load(path);
-
-Console.WriteLine($"Завантажено записів: {result.Items.Count}");
-
-foreach (BookDto b in result.Items.Take(5))
-{
-    // Відступи: -6 означає вирівнювання ліворуч на 6 символів, 5 — праворуч на 5
-    Console.WriteLine($" {b.Id,-6} {b.Isbn,-17} {b.Title,-26} {b.Year,5}");
-}
-
-if (result.Errors.Count > 0)
-{
-    Console.WriteLine($"Пропущено рядків: {result.Errors.Count}");
-    foreach (string e in result.Errors)
+    try
     {
-        Console.WriteLine($" ! {e}");
+        action();
+        Console.WriteLine($" {title}: виняток НЕ спрацював — інваріант відсутній!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($" {title}: {ex.GetType().Name} - {ex.Message}");
     }
 }
-
-return 0;
