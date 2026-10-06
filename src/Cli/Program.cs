@@ -3,7 +3,7 @@
 Console.WriteLine("Сценарій 1: успіх");
 var copy = BookCopy.Create("C-001", "978-3-16-148410");
 var loan = Loan.Open("L-001", copy.Id, "R-123", DateTime.Now);
-
+//copy.IsIssued = true;
 copy.Issue(); // Змінюємо стан примірника
 Console.WriteLine(loan);
 Console.WriteLine($"Примірник видано: {copy.IsIssued}");
@@ -20,7 +20,7 @@ Console.WriteLine("Сценарій 2: порушення інваріантів
 var copy2 = BookCopy.Create("C-002", "978-0-261-10328");
 copy2.Issue();
 TryDo("повторна видача", () => copy2.Issue());
-
+//Console.WriteLine(copy2.IsIssued);
 // Намагаємось створити примірник без порожнього ISBN
 TryDo("порожній ISBN", () => BookCopy.Create("C-003", ""));
 
