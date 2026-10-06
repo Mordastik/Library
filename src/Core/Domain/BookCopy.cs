@@ -1,3 +1,6 @@
+using System;
+using Core.Dto;
+
 namespace Core.Domain;
 
 public sealed class BookCopy
@@ -38,5 +41,15 @@ public sealed class BookCopy
         if (!IsIssued)
             throw new InvalidOperationException($"Примірник {Id} не можна повернути, бо він не виданий");
         IsIssued = false;
+    }
+
+    // Мапінг у формат DTO і назад
+    public BookCopyDto ToDto() => new(Id, Isbn, IsIssued);
+
+    public static BookCopy FromDto(BookCopyDto dto)
+    {
+        var copy = Create(dto.Id, dto.Isbn);
+        if (dto.IsIssued) copy.Issue();
+        return copy;
     }
 }
