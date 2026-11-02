@@ -61,3 +61,11 @@ dotnet publish src/Cli -c Release -r win-x64 --self-contained true
   - `InMemoryBookStore` — зберігання у пам'яті на базі `Dictionary` з початковими даними (`SampleData`).
   - `FileBookStore` — файлове JSON-сховище з кешуванням у пам'яті та серіалізацією через `BookCopyDto`.
 - **Сервіс**: `LendingService` (`src/Core/Services/LendingService.cs`) — бізнес-операції `AddBook`, `IssueCopy`, `ReturnCopy`, `All`, `Find`.
+
+## Доменні події та делегати (Лабораторна 6)
+- **Подія:** Додано подію `Changed` у `LendingService` на базі стандартного делегата `EventHandler<TEventArgs>`.
+- **Дані події:** Створено перелічення видів змін `LendingChangeKind` (`BookAdded`, `CopyIssued`, `CopyReturned`) та клас аргументів `LendingChangedEventArgs` (містить `CopyId`, `ReaderId`, `DueDate`, `At`).
+- **Підписники:** У `Program.cs` реалізовано два підписники:
+  1. Локальний метод `OnLendingChanged` для логування в консоль та файл `logs/app.log`.
+  2. Лямбда-вираз для підрахунку подій (демонстрація замикання).
+- **Фільтрація:** Використано делегат `Func<BookCopy, bool>` та LINQ-метод `Where` для пошуку за критерієм (`service.FindAll`).
