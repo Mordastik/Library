@@ -12,9 +12,9 @@ public sealed class LendingService(IBookStore store)
     private readonly IBookStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
     // Подія сповіщення про зміну стану
-    public event EventHandler<LendingChangedEventArgs>? Changed;
+    public event EventHandler<LendingChangedEventArgs>? Changed; //1
 
-    private void OnChanged(string copyId, LendingChangeKind kind, string? readerId = null, DateTimeOffset? dueDate = null) =>
+    private void OnChanged(string copyId, LendingChangeKind kind, string? readerId = null, DateTimeOffset? dueDate = null) => //1
         Changed?.Invoke(this, new LendingChangedEventArgs(copyId, kind, readerId, dueDate));
 
     public BookCopy AddBook(string isbn)
@@ -32,7 +32,8 @@ public sealed class LendingService(IBookStore store)
         var copy = _store.GetById(id)
             ?? throw new InvalidOperationException($"Немає примірника з id={id}.");
 
-        copy.Issue(); // Якщо сутність кине виняток (вже видано) — подія не підніметься
+        // ЗМІНЕНО: Передаємо параметри у метод сутності
+        copy.Issue(readerId, dueDate); // Якщо сутність кине виняток (вже видано) — подія не підніметься
         _store.Update(copy);
 
         OnChanged(copy.Id, LendingChangeKind.CopyIssued, readerId, dueDate);
@@ -54,6 +55,6 @@ public sealed class LendingService(IBookStore store)
     public BookCopy? Find(string id) => _store.GetById(id);
 
     // Крок 7: використання Func для вибірки за критерієм
-    public IReadOnlyList<BookCopy> FindAll(Func<BookCopy, bool> predicate) =>
+    public IReadOnlyList<BookCopy> FindAll(Func<BookCopy, bool> predicate) => //6
         _store.List().Where(predicate).ToList();
 }

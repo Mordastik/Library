@@ -11,6 +11,10 @@ public sealed class BookCopy
     public string Isbn { get; }
     public bool IsIssued => _isIssued; // Властивість лише для читання (стрілка)
 
+    // ДОДАНО: Поля для збереження інформації про читача та дедлайн (для звітів)
+    public string? ReaderId { get; private set; }
+    public DateTimeOffset? DueDate { get; private set; }
+
     private BookCopy(string id, string isbn, bool isIssued)
     {
         Id = id;
@@ -28,18 +32,26 @@ public sealed class BookCopy
         return new BookCopy(id.Trim(), isbn.Trim(), false);
     }
 
-    public void Issue()
+    // ЗМІНЕНО: Тепер приймає і зберігає дані про видачу
+    public void Issue(string readerId, DateTimeOffset dueDate)
     {
         if (_isIssued)
             throw new InvalidOperationException($"Примірник {Id} вже виданий, повторна видача неможлива.");
+        
         _isIssued = true;
+        ReaderId = readerId;
+        DueDate = dueDate;
     }
 
+    // ЗМІНЕНО: Очищає дані про видачу при поверненні
     public void Return()
     {
         if (!_isIssued)
             throw new InvalidOperationException($"Примірник {Id} не можна повернути, бо він не виданий.");
+        
         _isIssued = false;
+        ReaderId = null;
+        DueDate = null;
     }
 
     public BookCopyDto ToDto() => new(Id, Isbn, _isIssued);
@@ -47,7 +59,12 @@ public sealed class BookCopy
     public static BookCopy FromDto(BookCopyDto dto)
     {
         var copy = Create(dto.Id, dto.Isbn);
-        if (dto.IsIssued) copy.Issue();
+        if (dto.IsIssued) 
+        {
+            // Звертаємося напряму до приватного поля, 
+            // щоб не ламати сумісність зі старим DTO
+            copy._isIssued = true; 
+        }
         return copy;
     }
 
