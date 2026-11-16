@@ -87,3 +87,43 @@ LINQ-запити (наприклад, `Where`) не виконуються пі
 Під час виконання імпорту (якщо файл великий) швидко натисніть Ctrl+C у терміналі.
 
 Програма має коректно перехопити скасування і вивести повідомлення: "Імпорт скасовано." замість довгого стектрейсу з помилкою OperationCanceledException.
+
+## Налаштування та Конфігурація (Лабораторна 9)
+
+### Профілі (Середовища)
+Застосунок підтримує кілька профілів конфігурації:
+- **Production** (за замовчуванням): використовує базовий `appsettings.json`, мінімальний лог `Warning`.
+- **Development**: використовує `appsettings.Development.json` (перекриває базовий), детальне логування `Debug`.
+
+### Таблиця ключів конфігурації
+| Ключ в JSON | Опис | Типове значення |
+| :--- | :--- | :--- |
+| `EnvironmentName` | Назва поточного середовища | `Production` |
+| `Logging:MinimumLevel` | Мінімальний рівень логування | `Warning` |
+| `Storage:DataPath` | Шлях до папки з даними | `data` |
+| `Storage:FileName` | Ім'я файлу каталогу | `items.json` |
+| `Library:LoanDays` | Термін видачі книги (у днях) | `14` |
+| `Integration:ApiKey` | API-ключ (Секрет) | *(зберігається у user-secrets)* |
+
+### Перевизначення змінними середовища
+Будь-який параметр можна перевизначити через змінні середовища (префікс `CROSSAPP_`). Для вкладених ключів використовується подвійне підкреслення `__`. 
+Також підтримується legacy-змінна `CROSSAPP_DATA_PATH`, яка напряму перекриває шлях до даних.
+
+**Приклади для PowerShell (Windows):**
+```powershell
+$env:CROSSAPP_ENVIRONMENT="Development"
+$env:CROSSAPP_Storage__DataPath="C:\TempLibraryData"
+$env:CROSSAPP_DATA_PATH="C:\LegacyData"
+dotnet run --project src/Cli -- --file
+```
+
+**Приклади для Bash (Linux/macOS):**
+```Bash
+export CROSSAPP_ENVIRONMENT="Development"
+export CROSSAPP_Storage__DataPath="/tmp/library_data"
+export CROSSAPP_DATA_PATH="/tmp/legacy_data"
+dotnet run --project src/Cli -- --file
+
+# Або одноразово (inline) перед запуском:
+CROSSAPP_ENVIRONMENT=Development dotnet run --project src/Cli -- --file
+```

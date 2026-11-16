@@ -2,6 +2,9 @@
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Reflection;
+using Microsoft.Extensions.Configuration;
+using Core.Configuration;
 using Core.Reports;
 using Core;
 using Core.Abstractions;
@@ -10,15 +13,43 @@ using Core.Services;
 using Core.Storage;
 using Core.Domain; 
 
-bool useFile = args.Contains("--file");
-string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "catalog.json");
+// =================================================================
+//                 ЛАБОРАТОРНА 9: КОНФІГУРАЦІЯ ТА СЕКРЕТИ
+// =================================================================
+var envName = Environment.GetEnvironmentVariable("CROSSAPP_ENVIRONMENT") ?? "Development";
 
+var config = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+    .AddJsonFile($"appsettings.{envName}.json", optional: true)
+    .AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true)
+    .AddEnvironmentVariables(prefix: "CROSSAPP_")
+    .AddCommandLine(args)
+    .Build();
+
+var options = config.Get<AppOptions>() ?? new AppOptions();
+
+var legacy = Environment.GetEnvironmentVariable("CROSSAPP_DATA_PATH");
+var storageConfig = new StorageOptions
+{
+    DataPath = string.IsNullOrWhiteSpace(legacy) ? options.Storage.DataPath : legacy,
+    FileName = options.Storage.FileName 
+};
+
+var dataPath = storageConfig.ResolveFullPath(AppContext.BaseDirectory);
+var apiKey = config["Integration:ApiKey"];
+
+Console.WriteLine($"Файл даних: {dataPath}");
+Console.WriteLine(apiKey is null ? "ApiKey: не заданий" : $"ApiKey: присутній, довжина {apiKey.Length}");
+
+bool useFile = args.Contains("--file");
 IBookStore store = useFile
     ? new FileBookStore(dataPath)
     : new InMemoryBookStore(SampleData.Copies());
 
 var service = new LendingService(store);
 Console.WriteLine($"Сховище: {store.GetType().Name}");
+
 
 // =================================================================
 //                 ЛАБОРАТОРНА 8: ДОДАТКОВІ ЗАВДАННЯ
