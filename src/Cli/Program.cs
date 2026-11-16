@@ -8,7 +8,7 @@ using Core.Abstractions;
 using Core.Events;
 using Core.Services;
 using Core.Storage;
-using Core.Domain; // Додано для створення сутностей у демо-блоці
+using Core.Domain; 
 
 bool useFile = args.Contains("--file");
 string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "catalog.json");
@@ -20,32 +20,47 @@ IBookStore store = useFile
 var service = new LendingService(store);
 Console.WriteLine($"Сховище: {store.GetType().Name}");
 
-// --- ЛАБОРАТОРНА 8: АСИНХРОННИЙ ІМПОРТ ---
-using var cts = new CancellationTokenSource();
-Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
-// cts.CancelAfter(TimeSpan.FromSeconds(2)); // Можна розкоментувати для тесту таймауту
+// =================================================================
+//                 ЛАБОРАТОРНА 8: ДОДАТКОВІ ЗАВДАННЯ
+// =================================================================
+using var userCts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) => { e.Cancel = true; userCts.Cancel(); };
+
+// Таймаут на 5 секунд. Якщо імпорт триватиме довше — скасується автоматично
+using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5)); 
+using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(userCts.Token, timeoutCts.Token);
 
 try
 {
-    // Запускаємо асинхронний імпорт
-    var added = await service.ImportAsync(new JsonCatalogImporter(), dataPath, cts.Token);
-    Console.WriteLine($"Імпортовано записів: {added}");
+    Console.WriteLine("\nПочинаємо потоковий імпорт...");
+    
+    // IProgress малює динамічний рядок у консолі
+    var progress = new Progress<int>(p => 
+    {
+        Console.Write($"\r[Прогрес імпорту]: {p} примірників оброблено...");
+    });
+
+    // Передаємо linkedCts.Token та progress
+    var added = await service.ImportAsync(new JsonCatalogImporter(), dataPath, progress, linkedCts.Token);
+    Console.WriteLine($"\nІмпортовано записів: {added}");
 }
 catch (OperationCanceledException)
 {
-    Console.WriteLine("Імпорт скасовано.");
+    Console.WriteLine();
+    if (timeoutCts.IsCancellationRequested)
+        Console.WriteLine("Імпорт скасовано автоматично через ТАЙМАУТ.");
+    else if (userCts.IsCancellationRequested)
+        Console.WriteLine("Імпорт скасовано користувачем (Ctrl+C).");
+    else
+        Console.WriteLine("Імпорт скасовано.");
 }
-catch (DomainException ex)
-{
-    Console.WriteLine($"Дані відхилено: {ex.Message}");
-}
-catch (FileNotFoundException)
-{
-    Console.WriteLine($"Файл не знайдено: {dataPath}");
-}
-// -----------------------------------------
+catch (DomainException ex) { Console.WriteLine($"\nДані відхилено: {ex.Message}"); }
+catch (FileNotFoundException) { Console.WriteLine($"\nФайл не знайдено: {dataPath}"); }
 
-// --- Крок 3: Підписник 1 (локальний метод з консоллю та файлом логу) ---
+
+// =================================================================
+//                 ЛАБОРАТОРНА 6: ПОДІЇ ТА ПІДПИСНИКИ
+// =================================================================
 var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
 Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
 
@@ -64,19 +79,17 @@ void OnLendingChanged(object? sender, LendingChangedEventArgs e)
     File.AppendAllText(logPath, line + Environment.NewLine);
 }
 
-service.Changed += OnLendingChanged; 
+service.Changed += OnLendingChanged;
 
-// --- Крок 4: Підписник 2 (лямбда із замиканням над лічильником) ---
 int changes = 0;
-service.Changed += (_, _) => changes++; 
+service.Changed += (_, _) => changes++;
 
-// --- Крок 5: Сценарій подій та відписки ---
 Console.WriteLine("\n--- Активні підписки (працюють обидва підписники) ---");
 var copy1 = service.AddBook("978-3-16-148410-0");
 service.IssueCopy(copy1.Id, "R-101", DateTimeOffset.Now.AddDays(14));
 service.ReturnCopy(copy1.Id);
 
-Console.WriteLine($"Подій отримано: {changes}"); // Очікується: 3
+Console.WriteLine($"Подій отримано: {changes}"); 
 
 Console.WriteLine("\n--- Відписка від логування в консоль/файл (-=) ---");
 service.Changed -= OnLendingChanged;
@@ -84,10 +97,8 @@ service.Changed -= OnLendingChanged;
 var copy2 = service.AddBook("978-0-261-10328-3");
 service.IssueCopy(copy2.Id, "R-202", DateTimeOffset.Now.AddDays(7));
 
-// Операції виконані, але рядок логу більше не друкується
-Console.WriteLine($"Подій отримано (лише лямбда-лічильник): {changes}"); // Очікується: 5
+Console.WriteLine($"Подій отримано (лише лямбда-лічильник): {changes}"); 
 
-// --- Крок 6: Сценарій відмови (події не повинно бути) ---
 Console.WriteLine("\n--- Сценарій відмови ---");
 try
 {
@@ -96,11 +107,10 @@ try
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"Помилка: {ex.GetType().Name} - {ex.Message}");
+    Console.WriteLine($"Помилка: {ex.GetType().Name}\n{ex.Message}");
 }
-Console.WriteLine($"Подій після помилки (не змінилося): {changes}"); // Має лишитися 5
+Console.WriteLine($"Подій після помилки (не змінилося): {changes}"); 
 
-// --- Крок 7: Використання делегата Func для фільтрації ---
 Console.WriteLine("\n--- Пошук вільних примірників через Func (Where) ---");
 var availableCopies = service.FindAll(c => !c.IsIssued); 
 Console.WriteLine($"Знайдено вільних примірників: {availableCopies.Count}");
@@ -113,24 +123,19 @@ foreach (var c in availableCopies.Take(3))
 // =================================================================
 //                 ЛАБОРАТОРНА 7: ЗВІТИ ТА LINQ
 // =================================================================
-
-// --- КРОК 3: ДЕМО ВІДКЛАДЕНОГО ВИКОНАННЯ ---
 Console.WriteLine("\n=== ДЕМО ВІДКЛАДЕНОГО ВИКОНАННЯ ===");
 var sourceList = service.All().ToList();
-var query = sourceList.Where(p => !p.IsIssued); // Запит побудовано, але не виконано
+var query = sourceList.Where(p => !p.IsIssued); 
 
 Console.WriteLine($"Вільних примірників до змін: {query.Count()}");
-// Додаємо вільний примірник у колекцію-джерело
 sourceList.Add(BookCopy.Create("tmp001", "978-0-000000-0"));
-// Запит перераховується заново і бачить новий елемент
 Console.WriteLine($"Вільних примірників після змін: {query.Count()}");
 
-var snapshot = query.ToList(); // Результат матеріалізовано (зафіксовано)
+var snapshot = query.ToList(); 
 sourceList.Clear();
-Console.WriteLine($"У знімку лишилось: {snapshot.Count}\n"); // Знімок не змінюється
+Console.WriteLine($"У знімку лишилось: {snapshot.Count}\n"); 
 
 
-// --- КРОК 4: МЕНЮ ЗВІТІВ ---
 Console.WriteLine("=== ЗВІТИ (LINQ) ===");
 var items = service.All();
 var command = args.FirstOrDefault(a => !a.StartsWith("--")) ?? "report-groups";

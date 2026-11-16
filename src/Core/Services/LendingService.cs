@@ -19,19 +19,24 @@ public sealed class LendingService(IBookStore store)
         Changed?.Invoke(this, new LendingChangedEventArgs(copyId, kind, readerId, dueDate));
 
     // --- ДОДАНИЙ АСИНХРОННИЙ ІМПОРТ ---
-    public async Task<int> ImportAsync(ICatalogImporter importer, string path, CancellationToken ct = default)
+    public async Task<int> ImportAsync(ICatalogImporter importer, string path, IProgress<int>? progress = null, CancellationToken ct = default)
     {
-        var items = await importer.LoadAsync(path, ct);
         var added = 0;
-        foreach (var item in items)
+        
+        // Читаємо дані потоково по мірі їх появи
+        await foreach (var item in importer.LoadAsync(path, ct))
         {
             ct.ThrowIfCancellationRequested();
             
-            if (_store.GetById(item.Id) is not null) continue; 
+            if (_store.GetById(item.Id) is null) 
+            {
+                _store.Add(item);
+                OnChanged(item.Id, LendingChangeKind.BookAdded);
+                added++;
+            }
             
-            _store.Add(item);
-            OnChanged(item.Id, LendingChangeKind.BookAdded);
-            added++;
+            // Звітуємо підписнику про прогрес
+            progress?.Report(added);
         }
         return added;
     }
