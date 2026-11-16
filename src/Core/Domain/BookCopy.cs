@@ -36,8 +36,8 @@ public sealed class BookCopy
     public void Issue(string readerId, DateTimeOffset dueDate)
     {
         if (_isIssued)
-            throw new InvalidOperationException($"Примірник {Id} вже виданий, повторна видача неможлива.");
-        
+            throw new DomainException($"Примірник {Id} вже виданий, повторна видача неможлива."); // Змінено тут
+
         _isIssued = true;
         ReaderId = readerId;
         DueDate = dueDate;
@@ -47,7 +47,7 @@ public sealed class BookCopy
     public void Return()
     {
         if (!_isIssued)
-            throw new InvalidOperationException($"Примірник {Id} не можна повернути, бо він не виданий.");
+            throw new DomainException($"Примірник {Id} не можна повернути, бо він не виданий."); // Змінено тут
         
         _isIssued = false;
         ReaderId = null;

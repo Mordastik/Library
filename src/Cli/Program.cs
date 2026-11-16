@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Core.Reports;
 using Core;
 using Core.Abstractions;
@@ -18,6 +19,31 @@ IBookStore store = useFile
 
 var service = new LendingService(store);
 Console.WriteLine($"Сховище: {store.GetType().Name}");
+
+// --- ЛАБОРАТОРНА 8: АСИНХРОННИЙ ІМПОРТ ---
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+// cts.CancelAfter(TimeSpan.FromSeconds(2)); // Можна розкоментувати для тесту таймауту
+
+try
+{
+    // Запускаємо асинхронний імпорт
+    var added = await service.ImportAsync(new JsonCatalogImporter(), dataPath, cts.Token);
+    Console.WriteLine($"Імпортовано записів: {added}");
+}
+catch (OperationCanceledException)
+{
+    Console.WriteLine("Імпорт скасовано.");
+}
+catch (DomainException ex)
+{
+    Console.WriteLine($"Дані відхилено: {ex.Message}");
+}
+catch (FileNotFoundException)
+{
+    Console.WriteLine($"Файл не знайдено: {dataPath}");
+}
+// -----------------------------------------
 
 // --- Крок 3: Підписник 1 (локальний метод з консоллю та файлом логу) ---
 var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
@@ -95,9 +121,9 @@ var query = sourceList.Where(p => !p.IsIssued); // Запит побудован
 
 Console.WriteLine($"Вільних примірників до змін: {query.Count()}");
 // Додаємо вільний примірник у колекцію-джерело
-sourceList.Add(BookCopy.Create("tmp001", "978-0-000000-0")); 
+sourceList.Add(BookCopy.Create("tmp001", "978-0-000000-0"));
 // Запит перераховується заново і бачить новий елемент
-Console.WriteLine($"Вільних примірників після змін: {query.Count()}"); 
+Console.WriteLine($"Вільних примірників після змін: {query.Count()}");
 
 var snapshot = query.ToList(); // Результат матеріалізовано (зафіксовано)
 sourceList.Clear();
